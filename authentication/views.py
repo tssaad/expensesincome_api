@@ -9,6 +9,8 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
 from rest_framework import generics, status, views
 from rest_framework.response import Response
+from rest_framework import permissions
+
 
 from .serializers import *
 from .models import User
@@ -184,3 +186,25 @@ class SetNewPassword(generics.GenericAPIView):
             "message" : "paasword reseted successfully",
         }
         return Response(context, status=status.HTTP_200_OK)
+
+
+class LogutAPIView(generics.GenericAPIView):
+    serializer_class = LogutAPIViewSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AuthUserAPI(generics.GenericAPIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get(self, request):
+        user=User.objects.get(pk=request.user.pk)
+        serializer = RegisterSerializer(user)
+
+        return Response(serializer.data)

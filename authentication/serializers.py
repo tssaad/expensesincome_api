@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed, NotFound, PermissionDenied
-
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from .models import User
 from .utils import Util
 
@@ -37,11 +37,23 @@ class EmailVerifySerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['token']
+
+
 class LoginSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(max_length=255, min_length=8)
     password = serializers.CharField(max_length=68, min_length=6, write_only=True)
     username = serializers.CharField(max_length=68, min_length=6, read_only=True)
-    tokens = serializers.CharField(max_length=68, min_length=6, read_only=True)
+
+
+    tokens = serializers.SerializerMethodField()
+
+    def get_tokens(self, obj):
+        user = User.objects.get(email=obj['email'])
+        context = {
+            "access": user.tokens()['access'],
+            "refresh": user.tokens()['refresh'],
+        }
+        return context
 
 
     class Meta:
@@ -56,7 +68,7 @@ class LoginSerializer(serializers.ModelSerializer):
         try:
             user = User.objects.get(email=email, password=password)
         except User.DoesNotExist:
-            raise NotFound('User not found')
+            raise NotFound('Wrong login Information. Please Check your email, username or password')
             
         auth.authenticate(username=user.username)
 
@@ -132,3 +144,22 @@ class SetNewPasswordSerializer(serializers.Serializer):
             return (user)
         except DjangoUnicodeDecodeError as indentifier:
             raise AuthenticationFailed('The reset link is invalid', 401)
+
+
+class LogutAPIViewSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+
+    default_error_messages = {
+        'bad_token':('Token is expired or invalid')
+    }
+
+    def validate(self, attrs):
+        self.token = attrs['refresh']
+        
+        return attrs
+
+    def save(self, **kwargs):
+        try:
+            RefreshToken(self.token).blacklist()
+        except TokenError as intendifier:
+            self.fail('bad_token')
